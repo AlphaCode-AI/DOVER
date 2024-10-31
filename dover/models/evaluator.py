@@ -1,4 +1,6 @@
+
 import time
+import logging
 from functools import partial, reduce
 
 import torch
@@ -11,6 +13,8 @@ from .swin_backbone import SwinTransformer2D as ImageBackbone
 from .swin_backbone import SwinTransformer3D as VideoBackbone
 from .swin_backbone import swin_3d_small, swin_3d_tiny
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class BaseEvaluator(nn.Module):
     def __init__(
@@ -60,7 +64,8 @@ class DOVER(nn.Module):
         self.layer = layer
         super().__init__()
         for key, hypers in backbone.items():
-            print(backbone_size)
+            logger.info(f"backbone (aes/tech): {backbone_size}")
+            
             if key not in self.backbone_preserve_keys:
                 continue
             if backbone_size == "divided":
@@ -90,7 +95,7 @@ class DOVER(nn.Module):
                 # b = build_x_clip_model(**backbone[key])
             else:
                 raise NotImplementedError
-            print("Setting backbone:", key + "_backbone")
+            logger.info(f"Setting backbone: {key + '_backbone'}")
             setattr(self, key + "_backbone", b)
         if divide_head:
             for key in backbone:
@@ -98,12 +103,12 @@ class DOVER(nn.Module):
                 if key not in self.backbone_preserve_keys:
                     continue
                 b = VQAHead(pre_pool=pre_pool, **vqa_head)
-                print("Setting head:", key + "_head")
+                logger.info(f"Setting head: {key + '_head'}")
                 setattr(self, key + "_head", b)
         else:
             if var:
                 self.vqa_head = VARHead(**vqa_head)
-                print(b)
+                logger.info(f"Setting head: {key + '_head'}")
             else:
                 self.vqa_head = VQAHead(**vqa_head)
 
@@ -166,9 +171,9 @@ class DOVER(nn.Module):
                 else:
                     scores = scores[0]
                 if pooled:
-                    print(scores.shape)
+                    logger.info(f"pooled scores shape: {scores.shape}")
                     scores = torch.mean(scores, (1, 2, 3, 4))
-                    print(scores.shape)
+                    logger.info(f"pooled scores shape: {scores.shape}")
 
             if return_pooled_feats:
                 return scores, feats
@@ -222,9 +227,9 @@ class DOVER(nn.Module):
                 else:
                     scores = scores[0]
                 if pooled:
-                    print(scores.shape)
+                    logger.info(f"pooled scores shape: {scores.shape}")
                     scores = torch.mean(scores, (1, 2, 3, 4))
-                    print(scores.shape)
+                    logger.info(f"pooled scores shape: {scores.shape}")
 
             if return_pooled_feats:
                 return scores, feats

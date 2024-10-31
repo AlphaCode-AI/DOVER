@@ -1,23 +1,29 @@
-import copy
-import glob
 import os
 import os.path as osp
+
+import copy
+import glob
 import random
+import logging
+from tqdm import tqdm
 from functools import lru_cache
 
 import cv2
-import decord
-import numpy as np
 import skvideo.io
+import numpy as np
+
+import decord
+from decord import VideoReader, cpu, gpu
+
 import torch
 import torchvision
-from decord import VideoReader, cpu, gpu
-from tqdm import tqdm
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 random.seed(42)
-
 decord.bridge.set_bridge("torch")
-
 
 def get_spatial_fragments(
     video,
@@ -81,7 +87,7 @@ def get_spatial_fragments(
     hlength, wlength = res_h // fragments_h, res_w // fragments_w
 
     if random:
-        print("This part is deprecated. Please remind that.")
+        logger.info("This part is deprecated. Please remind that.")
         if res_h > fsize_h:
             rnd_h = torch.randint(
                 res_h - fsize_h, (len(hgrids), len(wgrids), dur_t // aligned)
@@ -231,7 +237,7 @@ def spatial_temporal_view_decomposition(
 ):
     video = {}
     if video_path.endswith(".yuv"):
-        print("This part will be deprecated due to large memory cost.")
+        logger.info("This part will be deprecated due to large memory cost.")
         ## This is only an adaptation to LIVE-Qualcomm
         ovideo = skvideo.io.vread(
             video_path, 1080, 1920, inputdict={"-pix_fmt": "yuvj420p"}
@@ -332,7 +338,7 @@ class ViewDecompositionDataset(torch.utils.data.Dataset):
         self.weight = opt.get("weight", 0.5)
         
         self.fully_supervised = opt.get("fully_supervised", False)
-        print("Fully supervised:", self.fully_supervised)
+        logger.info(f"Fully supervised: {self.fully_supervised}")
         
         self.video_infos = []
         self.ann_file = opt["anno_file"]
@@ -365,10 +371,7 @@ class ViewDecompositionDataset(torch.utils.data.Dataset):
                     sopt["frame_interval"],
                     sopt["num_clips"],
                 )
-            print(
-                stype + " branch sampled frames:",
-                self.samplers[stype](240, self.phase == "train"),
-            )
+            logger.info(f"{stype} branch sampled frames: {self.samplers[stype](240, self.phase == 'train')}")
 
         if isinstance(self.ann_file, list):
             self.video_infos = self.ann_file
@@ -391,7 +394,8 @@ class ViewDecompositionDataset(torch.utils.data.Dataset):
                     for file in files:
                         if file.endswith(".mp4"):
                             video_filenames += [os.path.join(root, file)]
-                print(len(video_filenames))
+                logger.info(f"Number of video files: {len(video_filenames)}")
+
                 video_filenames = sorted(video_filenames)
                 for filename in video_filenames:
                     self.video_infos.append(dict(filename=filename, label=-1))

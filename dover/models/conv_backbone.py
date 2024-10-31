@@ -1,3 +1,8 @@
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -399,7 +404,7 @@ class ConvNeXt3D(nn.Module):
         from collections import OrderedDict
         for key in t_state_dict.keys():
             if key not in s_state_dict:
-                print(key)
+                logger.info(f"key not in s_state_dict: {key}")
                 continue
             if t_state_dict[key].shape != s_state_dict[key].shape:
                 t = t_state_dict[key].shape[2]
@@ -490,10 +495,10 @@ class ConvNeXtV23D(nn.Module):
         from collections import OrderedDict
         for key in t_state_dict.keys():
             if key not in s_state_dict:
-                print(key)
+                logger.info(f"key not in s_state_dict: {key}")
                 continue
             if t_state_dict[key].shape != s_state_dict[key].shape:
-                print(t_state_dict[key].shape, s_state_dict[key].shape)
+                logger.info(f"shape mismatch: {t_state_dict[key].shape} != {s_state_dict[key].shape}")
                 t = t_state_dict[key].shape[2]
                 s_state_dict[key] = s_state_dict[key].unsqueeze(2).repeat(1,1,t,1,1) / t
         self.load_state_dict(s_state_dict, strict=False)
@@ -582,7 +587,7 @@ def convnext_xlarge(pretrained=False, in_22k=False, **kwargs):
     return model
 
 def convnext_3d_tiny(pretrained=False, in_22k=False, **kwargs):
-    print("Using Imagenet 22K pretrain", in_22k)
+    logger.info("Using Imagenet 22K pretrain", in_22k)
     model = ConvNeXt3D(depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], **kwargs)
     if pretrained:
         url = model_urls['convnext_tiny_22k'] if in_22k else model_urls['convnext_tiny_1k']
@@ -642,8 +647,9 @@ if __name__ == "__main__":
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = convnext_3d_tiny(True).to(device)
-    print(model)
+    logger.info(f"model: {model}")
+
     from thop import profile
-    print(profile(model, (torch.randn(4,3,32,224,224).to(device),))[0] / 1e9)
+    logger.info(f"FLOPs: {profile(model, (torch.randn(4,3,32,224,224).to(device),))[0] / 1e9}")
     
     
