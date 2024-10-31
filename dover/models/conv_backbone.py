@@ -1,7 +1,8 @@
+import os
 import logging
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(os.getenv("LOG_LEVEL", "WARNING"))
 
 import torch
 import torch.nn as nn
@@ -587,7 +588,10 @@ def convnext_xlarge(pretrained=False, in_22k=False, **kwargs):
     return model
 
 def convnext_3d_tiny(pretrained=False, in_22k=False, **kwargs):
-    logger.info("Using Imagenet 22K pretrain", in_22k)
+    try:
+        logger.info(f"Using Imagenet 22K pretrain {in_22k}")
+    except Exception as e:
+        print(f"{e} 예외 타입: {type(e).__name__}")
     model = ConvNeXt3D(depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], **kwargs)
     if pretrained:
         url = model_urls['convnext_tiny_22k'] if in_22k else model_urls['convnext_tiny_1k']

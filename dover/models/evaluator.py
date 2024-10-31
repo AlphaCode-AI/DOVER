@@ -1,4 +1,5 @@
 
+import os
 import time
 import logging
 from functools import partial, reduce
@@ -14,7 +15,7 @@ from .swin_backbone import SwinTransformer3D as VideoBackbone
 from .swin_backbone import swin_3d_small, swin_3d_tiny
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(os.getenv("LOG_LEVEL", "WARNING"))
 
 class BaseEvaluator(nn.Module):
     def __init__(
