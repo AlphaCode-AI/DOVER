@@ -3,6 +3,12 @@ import math
 from collections import OrderedDict
 from typing import Tuple, Union
 
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(os.getenv("LOG_LEVEL", "WARNING"))
+
 import clip
 import numpy as np
 import torch
@@ -819,7 +825,8 @@ def build_x_clip_model(
 ):
     state_dict = torch.load(pretrained_path, map_location="cpu")["model"]
     T = int(pretrained_path.split("_")[-1].split(".")[0])
-    print(T)
+    logger.debug(f"T: {T}")
+
     vit = "visual.proj" in state_dict
 
     if vit:

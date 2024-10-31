@@ -1,3 +1,9 @@
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(os.getenv("LOG_LEVEL", "WARNING"))
+
 from functools import lru_cache, reduce
 from operator import mul
 
@@ -38,7 +44,8 @@ def global_position_index(
         .long()
         .permute(0, 2, 3, 4, 1)
     )
-    # print(shift_size)
+    logger.debug(f"shift_size: {shift_size}")
+
     coords = torch.roll(
         coords, shifts=(-shift_size[0], -shift_size[1], -shift_size[2]), dims=(1, 2, 3)
     )
@@ -272,7 +279,7 @@ class WindowAttention3D(nn.Module):
             nW = fmask.shape[0]
             relative_position_bias = relative_position_bias.unsqueeze(0)
             fgate = fgate.unsqueeze(1)
-            # print(fgate.shape, relative_position_bias.shape)
+            logger.debug(f"fgate shape: {fgate.shape}, relative_position_bias shape: {relative_position_bias.shape}")
             if hasattr(self, "fragment_position_bias_table"):
                 relative_position_bias = (
                     relative_position_bias * fgate
@@ -429,7 +436,8 @@ class SwinTransformerBlock3D(nn.Module):
         if False:  # not hasattr(self, 'finfo_windows'):
             self.finfo_windows = window_partition(shifted_finfo, window_size)
         # W-MSA/SW-MSA
-        # print(shift_size)
+        logger.debug(f"shift_size: {shift_size}")
+
         gpi = global_position_index(
             Dp, Hp, Wp, window_size=window_size, shift_size=shift_size, device=x.device
         )
@@ -746,7 +754,7 @@ class SwinTransformer3D(nn.Module):
         frag_biases=[True, True, True, False],
     ):
         super().__init__()
-        print(frag_biases)
+        logger.debug(f"frag_biases: {frag_biases}")
 
         self.pretrained = pretrained
         self.pretrained2d = pretrained2d
@@ -906,9 +914,7 @@ class SwinTransformer3D(nn.Module):
                         "relative_position_bias_table", "fragment_position_bias_table"
                     )
                     if forked_key in clean_dict:
-                        print(
-                            f"Passing key {forked_key} as it is already in state_dict."
-                        )
+                        logger.debug(f"Passing key {forked_key} as it is already in state_dict.")
                     else:
                         clean_dict[forked_key] = value
 
@@ -921,7 +927,8 @@ class SwinTransformer3D(nn.Module):
         self.load_state_dict(clean_dict, strict=strict)
 
     def init_weights(self, pretrained=None):
-        print(self.pretrained, self.pretrained2d)
+        logger.debug(f"pretrained: {self.pretrained}, pretrained2d: {self.pretrained2d}")
+
         """Initialize the weights in backbone.
 
         Args:

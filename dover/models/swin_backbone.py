@@ -10,6 +10,11 @@ import torch.utils.checkpoint as checkpoint
 from einops import rearrange
 from timm.models.layers import DropPath, trunc_normal_
 
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(os.getenv("LOG_LEVEL", "WARNING"))
 
 def fragment_infos(D, H, W, fragments=7, device="cuda"):
     m = torch.arange(fragments).unsqueeze(-1).float()
@@ -39,7 +44,8 @@ def global_position_index(
         .long()
         .permute(0, 2, 3, 4, 1)
     )
-    # print(shift_size)
+
+    logger.debug(f"shift_size: {shift_size}")
     coords = torch.roll(
         coords, shifts=(-shift_size[0], -shift_size[1], -shift_size[2]), dims=(1, 2, 3)
     )
@@ -57,7 +63,7 @@ def get_adaptive_window_size(
     tw, hw, ww = base_window_size
     tx_, hx_, wx_ = input_x_size
     tx, hx, wx = base_x_size
-    print((tw * tx_) // tx, (hw * hx_) // hx, (ww * wx_) // wx)
+    logger.debug(f"window size: {(tw * tx_) // tx, (hw * hx_) // hx, (ww * wx_) // wx}")
     return (tw * tx_) // tx, (hw * hx_) // hx, (ww * wx_) // wx
 
 
@@ -248,7 +254,7 @@ class WindowAttention3D(nn.Module):
             x: input features with shape of (num_windows*B, N, C)
             mask: (0/-inf) mask with shape of (num_windows, N, N) or None
         """
-        # print(x.shape)
+        logger.debug(f"x shape: {x.shape}")
         B_, N, C = x.shape
         qkv = (
             self.qkv(x)
@@ -294,7 +300,7 @@ class WindowAttention3D(nn.Module):
             nW = fmask.shape[0]
             relative_position_bias = relative_position_bias.unsqueeze(0)
             fgate = fgate.unsqueeze(1)
-            # print(fgate.shape, relative_position_bias.shape)
+            logger.debug(f"fgate shape: {fgate.shape}, relative_position_bias shape: {relative_position_bias.shape}")
             if hasattr(self, "fragment_position_bias_table"):
                 relative_position_bias = (
                     relative_position_bias * fgate
@@ -448,7 +454,7 @@ class SwinTransformerBlock3D(nn.Module):
         if False:  # not hasattr(self, 'finfo_windows'):
             self.finfo_windows = window_partition(shifted_finfo, window_size)
         # W-MSA/SW-MSA
-        # print(shift_size)
+        logger.debug(f"shift_size: {shift_size}")
         gpi = global_position_index(
             Dp,
             Hp,
@@ -625,7 +631,7 @@ class BasicLayer(nn.Module):
         self.shift_size = tuple(i // 2 for i in window_size)
         self.depth = depth
         self.use_checkpoint = use_checkpoint
-        # print(window_size)
+        logger.debug(f"window_size: {window_size}")
         # build blocks
         self.blocks = nn.ModuleList(
             [
@@ -669,7 +675,7 @@ class BasicLayer(nn.Module):
             self.window_size if resized_window_size is None else resized_window_size,
             self.shift_size,
         )
-        # print(window_size)
+        logger.debug(f"window_size: {window_size}")
         x = rearrange(x, "b c d h w -> b d h w c")
         Dp = int(np.ceil(D / window_size[0])) * window_size[0]
         Hp = int(np.ceil(H / window_size[1])) * window_size[1]
@@ -899,7 +905,7 @@ class SwinTransformer3D(nn.Module):
             L2 = (2 * self.window_size[1] - 1) * (2 * self.window_size[2] - 1)
             wd = self.window_size[0]
             if nH1 != nH2:
-                print(f"Error in loading {k}, passing")
+                logger.error(f"Error in loading {k}, passing")
             else:
                 if L1 != L2:
                     S1 = int(L1 ** 0.5)
@@ -923,13 +929,13 @@ class SwinTransformer3D(nn.Module):
             )
 
         msg = self.load_state_dict(state_dict, strict=False)
-        print(msg)
-        print(f"=> loaded successfully '{self.pretrained}'")
+        logger.info(msg)
+        logger.info(f"=> loaded successfully '{self.pretrained}'")
         del checkpoint
         torch.cuda.empty_cache()
 
     def load_swin(self, load_path, strict=False):
-        print("loading swin lah")
+        logger.info("loading swin lah")
         from collections import OrderedDict
 
         model_state_dict = self.state_dict()
@@ -945,7 +951,7 @@ class SwinTransformer3D(nn.Module):
                         "relative_position_bias_table", "fragment_position_bias_table"
                     )
                     if forked_key in clean_dict:
-                        print("load_swin_error?")
+                        logger.error("load_swin_error?")
                     else:
                         clean_dict[forked_key] = value
 
@@ -954,7 +960,7 @@ class SwinTransformer3D(nn.Module):
             k for k in clean_dict.keys() if "relative_position_bias_table" in k
         ]
         for k in relative_position_bias_table_keys:
-            print(k)
+            logger.debug(f"k: {k}")
             relative_position_bias_table_pretrained = clean_dict[k]
             relative_position_bias_table_current = model_state_dict[k]
             L1, nH1 = relative_position_bias_table_pretrained.size()
@@ -969,12 +975,12 @@ class SwinTransformer3D(nn.Module):
                 L2 = (2 * self.window_size[1] - 1) * (2 * self.window_size[2] - 1)
                 wd = self.window_size[0]
             if nH1 != nH2:
-                print(f"Error in loading {k}, passing")
+                logger.error(f"Error in loading {k}, passing")
             else:
                 if L1 != L2:
                     S1 = int((L1 / 15) ** 0.5)
-                    print(
-                        relative_position_bias_table_pretrained.shape, 15, nH1, S1, S1
+                    logger.debug(
+                        f"relative_position_bias_table_pretrained shape: {relative_position_bias_table_pretrained.shape}, 15, nH1, S1, S1"
                     )
                     relative_position_bias_table_pretrained_resized = torch.nn.functional.interpolate(
                         relative_position_bias_table_pretrained.permute(1, 0)
@@ -997,13 +1003,13 @@ class SwinTransformer3D(nn.Module):
         for key, value in model_state_dict.items():
             if key in clean_dict:
                 if value.shape != clean_dict[key].shape:
-                    print(key)
+                    logger.debug(f"key: {key}")
                     clean_dict.pop(key)
 
         self.load_state_dict(clean_dict, strict=strict)
 
     def init_weights(self, pretrained=None):
-        print(self.pretrained, self.pretrained2d)
+        logger.debug(f"pretrained: {self.pretrained}, pretrained2d: {self.pretrained2d}")
         """Initialize the weights in backbone.
 
         Args:
@@ -1068,7 +1074,7 @@ class SwinTransformer3D(nn.Module):
                 1,
             )
         elif layer > -1:
-            print("something", len(feats))
+            logger.debug(f"something, len(feats): {len(feats)}")
             return feats[layer]
         else:
             return x

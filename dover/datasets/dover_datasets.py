@@ -20,7 +20,7 @@ import torchvision
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(os.getenv("LOG_LEVEL", "WARNING"))
 
 random.seed(42)
 decord.bridge.set_bridge("torch")
